@@ -20,7 +20,7 @@ env_logger = "0.10.0"
 #日志
 tracing = { version = "0.1.25", default-features = false, features = ["std"], optional = true }
 #info
-info = "0.1.0"
+#info = "0.1.0"
 
 multipart = { version = "0.18.0", features = ["hyper"] }
 sqlx = { version = "0.6", features = ["mysql","runtime-tokio-native-tls",  "uuid", "time"] }

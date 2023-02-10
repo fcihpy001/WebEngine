@@ -1,11 +1,16 @@
-use std::io::Read;
+use std::fs;
+use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use crate::threadpool::ThreadPool;
+
 pub mod data;
 pub mod client;
 pub mod server;
 pub mod router;
 pub mod middleware;
 pub mod responder;
+pub mod threadpool;
+
 
 fn main() {
     println!("Hello, world!");
@@ -28,8 +33,12 @@ fn main() {
     let listener = TcpListener::bind(&addr).unwrap();
     println!("服务启动成功: ip:{},port:{}",addr.ip(), addr.port());
 
+    let pool = ThreadPool::new(4);
     for stream in listener.incoming() {
-        handle_stream(stream.unwrap());
+        // handle_stream(stream.unwrap());
+        pool.execute(|| {
+            handle_stream(stream.unwrap());
+        })
     }
 }
 
@@ -44,7 +53,21 @@ fn handle_stream(mut stream: TcpStream) {
     println!("data:\n {content:?}");
 
     // 区分消息头和消息体的内容
+    let get = b"GET / HTTP/1.1 \r\n";
+    let sleep = b"GET /sleep HTTP/1.1 \r\n";
 
+    let (status_line,filename) = if buffer.starts_with(get) {
+        ("HTTP/1.1 200 OK\r\n\r\n", "hello.html")
+    } else if buffer.starts_with(sleep) {
+        ("HTTP/1.1 200 OK\r\n\r\n", "hello.html")
+    } else {
+        ("HTTP/1.1 404 NOT FOUND\r\n\r\n", "404.html")
+    };
+
+    let content = fs::read_to_string(filename).unwrap();
+    let response = format!("{} {}",status_line,content);
+    stream.write(response.as_bytes()).unwrap();
+    stream.flush().unwrap();
 }
 
 
