@@ -1,11 +1,4 @@
 
-pub enum  Method {
-    Get,
-    Post,
-    Put,
-    Update,
-    Delete
-}
 
 pub struct GetResult {
     pub args: Option<Args>,
