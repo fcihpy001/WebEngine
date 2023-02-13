@@ -1,7 +1,9 @@
 use std::{fs, thread};
+use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::time::Duration;
+use crate::httprequest::{HttpRequest, Method, Resource, Version};
 use crate::threadpool::ThreadPool;
 
 pub mod data;
@@ -42,51 +44,76 @@ fn main() {
     let pool = ThreadPool::new(4);
     for stream in listener.incoming() {
         // 使用线程池执行任务
-        pool.execute(|| {
-            handle_stream(stream.unwrap());
-        });
-        // thread::spawn(move || {
+        // pool.execute(|| {
         //     handle_stream(stream.unwrap());
         // });
+        thread::spawn(move || {
+            handle_stream(stream.unwrap());
+        });
     }
 }
 
 // 处理访问请求
 fn handle_stream(mut stream: TcpStream) {
-    println!("当前线程:{:#?}",thread::current());
-    println!("receive a new connection:: {}",stream.peer_addr().unwrap());
+    let mut route = HashMap::new();
+    route.insert("/api", "handle_api");
+    route.insert("/sleep", "handle_user");
+    route.insert("/404", "handle_404");
+
+    // println!("当前线程:{:#?}",thread::current());
+    // println!("receive a new connection:: {}",stream.peer_addr().unwrap());
 
     let mut buffer = [0;1024];
     // 读取网络数据到缓冲区
     let length = stream.read(&mut buffer).unwrap();
     // 将缓冲区中的内容，转成字符串
-    let request = String::from_utf8_lossy(&buffer[..length]);
-    println!("data:\n {request:?}");
-    // 根据请求数据，路由到不同handle
-    // Router::route(request, &mut stream);
-    //
-    //
-    // 区分消息头和消息体的内容
-    let get = b"GET / HTTP/1.1\r\n";
-    let sleep = b"GET /sleep HTTP/1.1\r\n";
+    let request_str = String::from_utf8(Vec::from(&buffer[..length]));
 
-    let (status_line,filename) = if buffer.starts_with(get) {
-        ("HTTP/1.1 200 OK\r\n\r\n", "index.html")
-    } else if buffer.starts_with(sleep) {
-        thread::sleep(Duration::from_secs(10));
-        ("HTTP/1.1 200 OK\r\n\r\n", "sleep.html")
+    let request = HttpRequest::from(request_str.unwrap());
+    println!("请求数据 {:#?}",request.resource);
+
+    // 区分消息头和消息体的内容
+    let response = if request.resource == Resource::Path("/api".to_string()) {
+        println!("11");
+        handle_api()
+    } else if  request.resource == Resource::Path("/sleep".to_string())  {
+        println!("22");
+
+        handle_user()
     } else {
-        ("HTTP/1.1 404 NOT FOUND\r\n\r\n", "404.html")
+        println!("33");
+       handle_404()
     };
-    // 组装响应内容
-    let content = fs::read_to_string(filename).unwrap();
-    let response = format!("{} {}",status_line,content);
+
     // 将数据返回到通道
     stream.write(response.as_bytes()).unwrap();
     stream.flush().unwrap();
 }
 
+fn handle_api() -> String {
+    let (status_line,filename) =  ("HTTP/1.1 200 OK\r\n\r\n", "index.html");
+    // 组装响应内容
+    let content = fs::read_to_string(filename).unwrap();
+    let response = format!("{} {}",status_line,content);
+    response
+}
 
+fn handle_user() -> String {
+    let (status_line,filename) =  ("HTTP/1.1 200 OK\r\n\r\n", "sleep.html");
+    // 组装响应内容
+    let content = fs::read_to_string(filename).unwrap();
+    let response = format!("{} {}",status_line,content);
+    response
+}
+
+fn handle_404() -> String {
+    let (status_line,filename) =  ("HTTP/1.1 404 NOT FOUND\r\n\r\n", "404.html");
+
+    // 组装响应内容
+    let content = fs::read_to_string(filename).unwrap();
+    let response = format!("{} {}",status_line,content);
+    response
+}
 
 
 
